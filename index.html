@@ -587,7 +587,8 @@ async function callOpenRouter(systemPrompt, userPrompt, payloadText){
   if(!apiKey || apiKey.length<10) return null;
 
   const model = "deepseek/deepseek-chat-v3-0324";
-  const userMsg = String(userPrompt).replaceAll("${payloadText}", payloadText);
+  const userMsg = String(userPrompt).split("${payloadText}").join(payloadText);
+
 
   const body = { model, messages: [
     {role:"system", content: systemPrompt},
