@@ -1,0 +1,1154 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>TRIDENT Backtest — Binance 合約(USDⓈ-M) 全幣種 + K線 + 進出場點</title>
+  <style>
+    :root{
+      --bg:#0b0f14; --card:#101826; --muted:#93a4b8; --text:#e8eef6;
+      --line:#1c2a3d; --good:#35d07f; --bad:#ff5c7a; --warn:#ffcc66;
+    }
+    *{box-sizing:border-box}
+    body{margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans TC","PingFang TC","Microsoft JhengHei",sans-serif}
+    header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:12px;align-items:center;justify-content:space-between}
+    header h1{font-size:15px;margin:0;letter-spacing:.4px}
+    header .right{display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+    .pill{font-size:12px;color:var(--muted);border:1px solid var(--line);padding:6px 10px;border-radius:999px}
+    main{padding:14px 18px;display:grid;grid-template-columns: 1.12fr .88fr;gap:14px}
+    @media (max-width:1100px){main{grid-template-columns:1fr}}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.22)}
+    .card .hd{padding:12px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+    .card .hd h2{margin:0;font-size:13px;color:var(--muted);font-weight:800;letter-spacing:.6px}
+    .card .bd{padding:12px}
+    .row{display:grid;grid-template-columns: 1fr 1fr;gap:10px}
+    @media (max-width:900px){.row{grid-template-columns:1fr}}
+    .split3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+    @media (max-width:900px){.split3{grid-template-columns:1fr}}
+    label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+    input,select,textarea,button{
+      width:100%;border-radius:10px;border:1px solid var(--line);
+      background:#0c1422;color:var(--text);padding:10px;font-size:13px;outline:none
+    }
+    textarea{min-height:150px;resize:vertical;line-height:1.35}
+    button{cursor:pointer;background:linear-gradient(135deg, rgba(92,200,255,.15), rgba(53,208,127,.12));
+      border:1px solid rgba(92,200,255,.22)}
+    button:hover{border-color:rgba(92,200,255,.45)}
+    .btnRow{display:flex;gap:10px;flex-wrap:wrap}
+    .btnRow button{width:auto;padding:10px 12px}
+    .muted{color:var(--muted);font-size:12px;line-height:1.35}
+    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .kpi{padding:10px;border:1px solid var(--line);border-radius:12px;background:#0b1321}
+    .kpi .k{font-size:12px;color:var(--muted)}
+    .kpi .v{font-size:18px;margin-top:4px;font-weight:900}
+    table{width:100%;border-collapse:collapse;font-size:12px}
+    th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:left;vertical-align:top}
+    th{color:var(--muted);font-weight:800}
+    .tag{display:inline-block;font-size:11px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+    .pos{color:var(--good);font-weight:800}
+    .neg{color:var(--bad);font-weight:800}
+    .warn{color:var(--warn);font-weight:800}
+    canvas{width:100%;height:320px;border-radius:12px;border:1px solid var(--line);background:#07101c}
+    .small{font-size:11px;color:var(--muted)}
+    .hr{height:1px;background:var(--line);margin:10px 0}
+    .toggle{display:flex;gap:8px;align-items:center}
+    .toggle input{width:auto}
+    .hint{font-size:12px;color:var(--muted);line-height:1.35}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace}
+    .err{padding:10px;border:1px solid rgba(255,92,122,.35);background:rgba(255,92,122,.08);border-radius:12px}
+    .ok{padding:10px;border:1px solid rgba(53,208,127,.35);background:rgba(53,208,127,.08);border-radius:12px}
+  </style>
+</head>
+<body>
+<header>
+  <h1>TRIDENT Backtest <span class="pill">Binance USDⓈ-M Futures 全幣種</span></h1>
+  <div class="right">
+    <span class="pill" id="statusPill">Ready</span>
+    <span class="pill" id="dataTag">No data</span>
+  </div>
+</header>
+
+<main>
+  <!-- Left -->
+  <section class="card">
+    <div class="hd">
+      <h2>設定 / 幣安合約資料源 / Prompts</h2>
+      <span class="tag">單檔 HTML</span>
+    </div>
+    <div class="bd">
+
+      <div class="row">
+        <div>
+          <label>資料源 Base URL（直連：fapi.binance.com；若 CORS 請改成你的 Proxy）</label>
+          <input id="baseUrl" value="https://fapi.binance.com" />
+          <div class="small">
+            若你在瀏覽器遇到 CORS：你需要「自建 Proxy（建議）」或用同網域後端代轉。此頁已支援把 Base URL 改成你的 Proxy。
+          </div>
+        </div>
+        <div>
+          <label>OpenRouter API Key（可留空＝本地模擬 entry/mgmt）</label>
+          <input id="apiKey" placeholder="sk-or-..." />
+          <div class="small">建議：先不填，確定幣安資料抓得到與圖表沒問題再接 AI。</div>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <div>
+          <label>載入「全部幣安合約幣種」（USDⓈ-M Perpetual）</label>
+          <button id="loadSymbolsBtn">Load Futures Symbols</button>
+          <div class="small">來源：GET /fapi/v1/exchangeInfo（只取 PERPETUAL + quoteAsset=USDT + status=TRADING）</div>
+        </div>
+        <div>
+          <label>幣種（可搜尋）</label>
+          <input id="symbolSearch" placeholder="例如 BTC / ETH / SOL / PIPPIN..." />
+          <select id="symbolSelect"></select>
+        </div>
+      </div>
+
+      <div id="msgBox" style="margin-top:10px"></div>
+
+      <div class="hr"></div>
+
+      <div class="split3">
+        <div>
+          <label>K 線根數（max 1500）</label>
+          <input id="bars" type="number" value="900" min="100" max="1500"/>
+        </div>
+        <div>
+          <label>TF</label>
+          <select id="interval">
+            <option value="1m">1m</option>
+            <option value="3m">3m</option>
+            <option value="5m" selected>5m</option>
+            <option value="15m">15m</option>
+            <option value="30m">30m</option>
+            <option value="1h">1h</option>
+            <option value="2h">2h</option>
+            <option value="4h">4h</option>
+            <option value="1d">1d</option>
+          </select>
+        </div>
+        <div>
+          <label>把 OI / Funding 加進 Snapshot</label>
+          <select id="enrich">
+            <option value="lite" selected>Lite（只抓最新 OI + 最新 Funding）</option>
+            <option value="hist">Hist（用 OI 近似時間序列對齊 K 線）</option>
+            <option value="off">Off（不抓，全部用 proxy）</option>
+          </select>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="split3">
+        <div><label>初始資金</label><input id="equity0" type="number" value="10000"/></div>
+        <div><label>Risk per trade（% equity）</label><input id="riskPct" type="number" step="0.1" value="0.8"/></div>
+        <div><label>手續費（bps）</label><input id="feeBps" type="number" step="1" value="6"/></div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="split3">
+        <div>
+          <label>同 K 線 SL/TP 先後假設</label>
+          <select id="tieBreak">
+            <option value="worst" selected>保守（先 SL）</option>
+            <option value="neutral">中性（離 entry 近者先）</option>
+            <option value="best">樂觀（先 TP）</option>
+          </select>
+        </div>
+        <div>
+          <label>滑點模型</label>
+          <select id="slipMode">
+            <option value="off">關閉</option>
+            <option value="atr" selected>ATR%（更像真實）</option>
+          </select>
+          <div class="small">SL 方向更不利；TP 也會有滑點。</div>
+        </div>
+        <div>
+          <label>滑點基礎值 base bps</label>
+          <input id="slipBaseBps" type="number" value="2" step="1"/>
+        </div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="btnRow">
+        <button id="fetchBtn">Fetch Binance Futures Data</button>
+        <button id="runBtn">Run Backtest</button>
+        <button id="resetBtn">Reset</button>
+        <button id="fitBtn">Auto-fit Chart</button>
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="toggle">
+        <input type="checkbox" id="lockPrompts" checked />
+        <label for="lockPrompts" style="margin:0">四個提示詞預設鎖定（取消勾選才能改）</label>
+      </div>
+      <div class="hint">
+        你要「平替版、不用太嚴格、一天 10 筆左右」：我把 ENTRY/MGMT 提示詞預設成「核心必備 + 部分吻合即可」，不再要求全部條件同時成立。<br/>
+        預設鎖定讓你直接跑；要自行微調再解鎖。
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <div><label>ENTRY System Prompt</label><textarea id="entrySys" class="mono"></textarea></div>
+        <div><label>ENTRY User Prompt（使用 ${payloadText} 自動塞 Snapshot）</label><textarea id="entryUser" class="mono"></textarea></div>
+      </div>
+
+      <div style="height:10px"></div>
+
+      <div class="row">
+        <div><label>MGMT System Prompt</label><textarea id="mgmtSys" class="mono"></textarea></div>
+        <div><label>MGMT User Prompt（使用 ${payloadText} 自動塞 Snapshot）</label><textarea id="mgmtUser" class="mono"></textarea></div>
+      </div>
+
+      <div style="height:10px"></div>
+      <div class="muted">
+        使用端點（官方）：
+        /fapi/v1/exchangeInfo、/fapi/v1/klines、/fapi/v1/openInterest、/fapi/v1/fundingRate、（可選）/futures/data/openInterestHist。<br/>
+        若你直連遇到 CORS：把 Base URL 指向你的後端 proxy（同網域）即可。
+      </div>
+    </div>
+  </section>
+
+  <!-- Right -->
+  <section class="card">
+    <div class="hd">
+      <h2>圖表 / 回測結果</h2>
+      <span class="tag" id="chartInfo">K 線</span>
+    </div>
+    <div class="bd">
+      <label>K 線（含進出場點）</label>
+      <canvas id="kCanvas" width="1200" height="360"></canvas>
+      <div class="small" id="hoverInfo">滑鼠移到 K 線上可看 OHLC；點 Trades 可跳到該筆交易。</div>
+
+      <div style="height:10px"></div>
+
+      <div class="grid2">
+        <div class="kpi"><div class="k">Net PnL</div><div class="v" id="kNet">-</div></div>
+        <div class="kpi"><div class="k">Max DD</div><div class="v" id="kDD">-</div></div>
+        <div class="kpi"><div class="k">Win Rate</div><div class="v" id="kWR">-</div></div>
+        <div class="kpi"><div class="k">Trades</div><div class="v" id="kN">-</div></div>
+      </div>
+
+      <div style="height:10px"></div>
+      <label>Equity Curve</label>
+      <canvas id="eqCanvas" width="1200" height="240"></canvas>
+
+      <div style="height:10px"></div>
+      <label>Trades（點擊列可在 K 線上高亮）</label>
+      <div style="max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:12px">
+        <table id="trTable">
+          <thead>
+            <tr><th>#</th><th>Side</th><th>Entry</th><th>Exit</th><th>PnL</th><th>R</th><th>Reason</th></tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+
+      <div style="height:10px"></div>
+      <label>Log</label>
+      <textarea id="log" class="mono" style="min-height:140px" readonly></textarea>
+    </div>
+  </section>
+</main>
+
+<script>
+/* =========================
+   DEFAULT PROMPTS（放寬版）
+========================= */
+const DEFAULT_ENTRY_SYS = `You are TRIDENT trade planner. You select opportunities and propose structured plans.
+CORE:
+- Allow B-grade setups. You do NOT need all signals to align.
+- Prefer entries near current price. No chasing.
+- SL must be structural (not micro noise).
+Output STRICT JSON only. No markdown. No extra text.`;
+
+const DEFAULT_ENTRY_USER = `Return STRICT JSON only:
+{"plans":[{"symbol":"XXXUSDT","side":"LONG|SHORT","mode":"normal|runner","entry":0,"sl":0,"tpLadder":[{"tp":0,"takePct":0.5},{"tp":0,"takePct":0.5}],"invalidation":"one sentence max","adds":[{"triggerR":0.8,"riskBudgetStepPct":0.01,"maxAdds":1},{"triggerR":1.6,"riskBudgetStepPct":0.01,"maxAdds":1}],"trail":{"enableAtR":1.2,"method":"STRUCT","atrMult":2.5,"updateEverySec":60},"timeStop":{"tf":"5m","bars":9,"action":"REDUCE_50_OR_EXIT"},"confidence":70,"leverage":10,"thesis":"one sentence max"}]}
+
+Pick at most 2 plans. If no clear edge -> {"plans":[]}.
+CORE (need 2/2):
+1) Momentum: slope15m aligned AND CVD aligned.
+2) Structural SL: SL at real structure; not too tight.
+
+BONUS (need >=1, not all):
+- qvolSpikeRatio >= 1.15
+- OI 1h chgSpanPct aligned
+- OBP not STRONG opposite
+- PB_OK = 1 (PB_OK=0 allowed if not chasing, lower confidence)
+
+Constraints:
+- RR >= 1.5
+- Confidence >=65 is allowed (B-grade). Runner only if confidence>=80.
+
+Snapshot:
+\${payloadText}`;
+
+const DEFAULT_MGMT_SYS = `You are TRIDENT position manager. You protect running trades and let winners run.
+Default = HOLD. Act only on STRUCTURAL changes.
+Never widen SL. Output STRICT JSON only.`;
+
+const DEFAULT_MGMT_USER = `Return STRICT JSON only:
+{"actions":[{"symbol":"XXXUSDT","action":"HOLD|MOVE_SL|MOVE_TP|MOVE_BOTH|ADD","newSl":0,"newTp":0,"addBudgetStepPct":0,"reason":"one sentence max"}]}
+
+HARD:
+- NEVER widen SL.
+- LONG newSl >= currentSl and < currentMark.
+- SHORT newSl <= currentSl and > currentMark.
+If unsure -> {"actions":[]}.
+
+MOVE_SL:
+- Require confirmed swing (HL/LH) + close confirmation.
+- Prefer R>=0.8.
+EARLY EXIT (rare):
+- Require 1h slope reversal + OI1h reversal + strong opposing pressure.
+TP extend:
+- Allow when R>=1.0 and trend accelerates.
+ADD:
+- Only if mode=ADD_DECISION and anomaly low and R>=0.6.
+
+Snapshot:
+\${payloadText}`;
+
+/* =========================
+   UTIL
+========================= */
+const $ = (id)=>document.getElementById(id);
+function setStatus(txt){ $("statusPill").textContent = txt; }
+function logLine(s){ $("log").value += s + "\\n"; $("log").scrollTop = 1e9; }
+function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
+function round(n,dp=2){ const p=Math.pow(10,dp); return Math.round(n*p)/p; }
+function safeJSONExtract(text){
+  const m = String(text||"").match(/\\{[\\s\\S]*\\}/);
+  if(!m) return null;
+  try{ return JSON.parse(m[0]); }catch(e){ return null; }
+}
+function setPromptsLocked(locked){
+  for(const id of ["entrySys","entryUser","mgmtSys","mgmtUser"]){
+    $(id).readOnly = locked;
+    $(id).style.opacity = locked ? "0.75" : "1";
+  }
+}
+function msg(kind, html){
+  const box = $("msgBox");
+  if(!html){ box.innerHTML=""; return; }
+  box.innerHTML = `<div class="${kind}">${html}</div>`;
+}
+function base(){ return ($("baseUrl").value||"").trim().replace(/\\/$/,""); }
+
+/* =========================
+   BINANCE FETCH (USD-M Futures)
+========================= */
+async function fetchJSON(path, qs={}){
+  const u = new URL(base()+path);
+  for(const [k,v] of Object.entries(qs)){
+    if(v===undefined || v===null || v==="") continue;
+    u.searchParams.set(k, String(v));
+  }
+  const res = await fetch(u.toString(), { method:"GET" });
+  if(!res.ok){
+    const txt = await res.text().catch(()=> "");
+    throw new Error(`${path} ${res.status}: ${txt.slice(0,160)}`);
+  }
+  return res.json();
+}
+
+let symbols = [];
+let series = null;
+let trades = [];
+let selectedTradeIndex = -1;
+let view = { start: 0, end: 0, min: 0, max: 0 };
+
+function setDataTag(){
+  const sym = ($("symbolSelect").value||"").trim().toUpperCase();
+  $("dataTag").textContent = series ? `${sym} • ${$("bars").value} bars • ${$("interval").value}` : "No data";
+}
+
+async function loadSymbols(){
+  setStatus("Loading symbols...");
+  msg("", "");
+  try{
+    const info = await fetchJSON("/fapi/v1/exchangeInfo");
+    const arr = (info?.symbols || [])
+      .filter(s => s.contractType==="PERPETUAL" && s.quoteAsset==="USDT" && s.status==="TRADING")
+      .map(s => ({symbol:s.symbol, baseAsset:s.baseAsset, quoteAsset:s.quoteAsset}));
+
+    arr.sort((a,b)=> a.symbol.localeCompare(b.symbol));
+    symbols = arr;
+
+    const sel = $("symbolSelect");
+    sel.innerHTML = "";
+    for(const s of symbols){
+      const opt=document.createElement("option");
+      opt.value=s.symbol;
+      opt.textContent=s.symbol;
+      sel.appendChild(opt);
+    }
+    const idx = symbols.findIndex(x=>x.symbol==="BTCUSDT");
+    sel.selectedIndex = idx>=0 ? idx : 0;
+
+    msg("ok", `已載入合約幣種：<b>${symbols.length}</b>（USDⓈ-M PERPETUAL, quote=USDT）`);
+    setStatus("Ready");
+  }catch(e){
+    msg("err", `<b>載入幣種失敗</b>：${String(e)}<br/><span class="small">若是 CORS，請把 Base URL 改成你的 proxy（同網域後端）。</span>`);
+    setStatus("Error");
+  }
+}
+
+$("symbolSearch").addEventListener("input", ()=>{
+  const q = ($("symbolSearch").value||"").trim().toUpperCase();
+  const sel = $("symbolSelect");
+  if(!q){ return; }
+  const i = symbols.findIndex(s => s.symbol.includes(q));
+  if(i>=0) sel.selectedIndex = i;
+});
+
+async function fetchKlines(symbol, interval, limit){
+  const arr = await fetchJSON("/fapi/v1/klines", { symbol, interval, limit });
+  return arr.map(k => ({
+    ts: Number(k[0]),
+    o: Number(k[1]),
+    h: Number(k[2]),
+    l: Number(k[3]),
+    c: Number(k[4]),
+    v: Number(k[5]),
+    quoteVol: Number(k[7]),
+    trades: Number(k[8]),
+    takerBaseVol: Number(k[9]),
+    takerQuoteVol: Number(k[10]),
+  }));
+}
+
+async function fetchLatestOI(symbol){
+  const j = await fetchJSON("/fapi/v1/openInterest", { symbol });
+  return Number(j?.openInterest ?? 0);
+}
+
+async function fetchLatestFunding(symbol){
+  const arr = await fetchJSON("/fapi/v1/fundingRate", { symbol, limit: 50 });
+  if(!Array.isArray(arr) || arr.length===0) return null;
+  arr.sort((a,b)=> Number(a.fundingTime)-Number(b.fundingTime));
+  const last = arr[arr.length-1];
+  return { fundingRate: Number(last.fundingRate), fundingTime: Number(last.fundingTime) };
+}
+
+async function fetchOpenInterestHist(symbol, period, limit){
+  const arr = await fetchJSON("/futures/data/openInterestHist", { symbol, period, limit });
+  return (Array.isArray(arr)?arr:[]).map(x=>({ ts: Number(x.timestamp), sumOpenInterest: Number(x.sumOpenInterest) }));
+}
+
+function computeATR(data, period=14){
+  const atr = new Array(data.length).fill(null);
+  let trSum = 0;
+  for(let i=1;i<data.length;i++){
+    const hi=data[i].h, lo=data[i].l, pc=data[i-1].c;
+    const tr = Math.max(hi-lo, Math.abs(hi-pc), Math.abs(lo-pc));
+    data[i].tr = tr;
+    if(i<=period){
+      trSum += tr;
+      if(i===period) atr[i]=trSum/period;
+    }else{
+      const prev = atr[i-1] ?? (trSum/period);
+      atr[i] = (prev*(period-1) + tr)/period;
+    }
+  }
+  for(let i=0;i<data.length;i++) data[i].atr = atr[i] ?? atr[Math.max(0,i-1)] ?? null;
+}
+
+function deriveProxies(data){
+  let cvd = 0;
+  const win=60;
+  const volQ=[]; let volSum=0;
+
+  const ma = (arr, idx, len)=>{
+    if(idx<len) return null;
+    let s=0;
+    for(let k=idx-len+1;k<=idx;k++) s+=arr[k].c;
+    return s/len;
+  };
+
+  for(let i=0;i<data.length;i++){
+    const d=data[i];
+    const buy = d.takerBaseVol ?? 0;
+    const sell = Math.max(0, (d.v ?? 0) - buy);
+    cvd += (buy - sell);
+    d.cvdNorm = clamp(cvd/(Math.max(1e-9, (data[0].v||1))*8), -3, 3);
+
+    volQ.push(d.v); volSum += d.v;
+    if(volQ.length>win) volSum -= volQ.shift();
+    const avg = volQ.length ? volSum/volQ.length : d.v;
+    d.qvolSpikeRatio = avg>0 ? clamp(d.v/avg, 0.6, 3.0) : 1.0;
+
+    if(i>=12){
+      const hi=Math.max(...data.slice(i-12,i).map(x=>x.h));
+      const lo=Math.min(...data.slice(i-12,i).map(x=>x.l));
+      const mid=(hi+lo)/2;
+      d.PB_OK = (Math.abs(d.c-mid) < (hi-lo)*0.20) ? 1 : 0;
+    }else d.PB_OK = 1;
+
+    const upW = d.h - Math.max(d.o,d.c);
+    const dnW = Math.min(d.o,d.c) - d.l;
+    const body = Math.abs(d.c-d.o);
+    let sig="NEUTRAL";
+    if(dnW > upW*1.6 && body>0) sig="BULL";
+    if(upW > dnW*1.6 && body>0) sig="BEAR";
+    if(dnW > upW*2.6 && body>0) sig="STRONG_BULL";
+    if(upW > dnW*2.6 && body>0) sig="STRONG_BEAR";
+    d.OBP_SIGNAL = sig;
+
+    const atr = d.atr || null;
+    d.anomaly = (atr && atr>0 && d.tr) ? clamp(d.tr/atr, 0, 3.0) : 1.0;
+
+    const m5 = ma(data,i,5), m20=ma(data,i,20);
+    const m12 = ma(data,i,12), m60=ma(data,i,60);
+    d.slope15m = (m5 && m20) ? clamp((m5-m20)/d.c*2000, -3, 3) : 0;
+    d.slope1h  = (m12 && m60) ? clamp((m12-m60)/d.c*2000, -3, 3) : 0;
+
+    if(typeof d.oi === "number" && i>=12 && typeof data[i-12].oi==="number"){
+      const prev = data[i-12].oi;
+      d.oi1hChgSpanPct = prev? clamp((d.oi-prev)/prev*100, -8, 8) : 0;
+    }else{
+      d.oi1hChgSpanPct = 0;
+    }
+  }
+}
+
+async function fetchSeries(){
+  const symbol = ($("symbolSelect").value||"").trim().toUpperCase();
+  const interval = $("interval").value;
+  const limit = clamp(Number($("bars").value||900), 100, 1500);
+  const enrich = $("enrich").value;
+
+  if(!symbol){ throw new Error("請先 Load Futures Symbols，並選擇幣種"); }
+
+  setStatus("Fetching...");
+  msg("", "");
+  $("log").value = "";
+
+  const kl = await fetchKlines(symbol, interval, limit);
+
+  series = kl.map((d, i)=>({
+    t: i,
+    ts: d.ts,
+    o:d.o,h:d.h,l:d.l,c:d.c,v:d.v,
+    takerBaseVol: d.takerBaseVol,
+    takerQuoteVol: d.takerQuoteVol,
+    oi: undefined,
+    fundingRate: undefined
+  }));
+
+  if(enrich === "off"){
+    // do nothing
+  } else if(enrich === "lite"){
+    const [oiNow, fund] = await Promise.all([
+      fetchLatestOI(symbol).catch(()=>0),
+      fetchLatestFunding(symbol).catch(()=>null)
+    ]);
+    series[series.length-1].oi = oiNow;
+    if(fund) series[series.length-1].fundingRate = fund.fundingRate;
+    msg("ok", `抓到 K 線 ${limit} 根；補上「最新 OI」與「最新 Funding」。`);
+  } else if(enrich === "hist"){
+    const oiLimit = Math.min(500, limit);
+    const hist = await fetchOpenInterestHist(symbol, interval, oiLimit).catch(()=>[]);
+    if(hist.length){
+      let j=0;
+      for(let i=Math.max(0, series.length-oiLimit); i<series.length; i++){
+        const ts = series[i].ts;
+        while(j<hist.length-1 && hist[j+1].ts <= ts) j++;
+        series[i].oi = hist[j]?.sumOpenInterest;
+      }
+    }
+    const fund = await fetchLatestFunding(symbol).catch(()=>null);
+    if(fund) series[series.length-1].fundingRate = fund.fundingRate;
+    msg("ok", `抓到 K 線 ${limit} 根；補上 OI（hist 對齊近端最多 ${oiLimit} 根）與最新 Funding。`);
+  }
+
+  computeATR(series, 14);
+  deriveProxies(series);
+
+  setDataTag();
+  fitView();
+  drawAll();
+  logLine(`Fetched: ${symbol} ${interval} x ${limit}`);
+  setStatus("Data ready");
+}
+
+/* =========================
+   OPENROUTER CALL (optional)
+========================= */
+async function callOpenRouter(systemPrompt, userPrompt, payloadText){
+  const apiKey = $("apiKey").value.trim();
+  if(!apiKey || apiKey.length<10) return null;
+
+  const model = "deepseek/deepseek-chat-v3-0324";
+  const userMsg = String(userPrompt).replaceAll("${payloadText}", payloadText);
+
+  const body = { model, messages: [
+    {role:"system", content: systemPrompt},
+    {role:"user", content: userMsg}
+  ]};
+
+  try{
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions",{
+      method:"POST",
+      headers:{
+        "Authorization":`Bearer ${apiKey}`,
+        "Content-Type":"application/json",
+        "HTTP-Referer": location.href
+      },
+      body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    const txt = data?.choices?.[0]?.message?.content || "";
+    return safeJSONExtract(txt);
+  }catch(e){
+    logLine("OpenRouter error: "+String(e));
+    return null;
+  }
+}
+
+/* =========================
+   ADAPTERS: plans/actions
+========================= */
+function normalizeEntryDecision(aiObj, snapshot){
+  const plan = aiObj?.plans?.[0];
+  if(!plan) return { side:"NONE", confidence:0 };
+  const tp0 = Array.isArray(plan.tpLadder)&&plan.tpLadder.length ? Number(plan.tpLadder[0].tp) : 0;
+  return {
+    side: String(plan.side||"NONE").toUpperCase(),
+    confidence: Number(plan.confidence ?? 0),
+    entry: Number(plan.entry ?? snapshot.c),
+    stopLoss: Number(plan.sl ?? 0),
+    takeProfit: tp0,
+    reason: String(plan.thesis || plan.invalidation || ""),
+    leverage: Number(plan.leverage ?? 1)
+  };
+}
+function normalizeMgmtDecision(aiObj, symbolUpper){
+  const acts = Array.isArray(aiObj?.actions) ? aiObj.actions : [];
+  const act = acts.find(a => String(a.symbol||"").toUpperCase()===symbolUpper) || acts[0];
+  if(!act) return { action:"HOLD" };
+  return {
+    action: String(act.action||"HOLD").toUpperCase(),
+    newSl: Number(act.newSl||0),
+    newTp: Number(act.newTp||0),
+    addBudgetStepPct: Number(act.addBudgetStepPct||0),
+    reason: String(act.reason||"")
+  };
+}
+
+/* =========================
+   FALLBACK SIM (no API)
+========================= */
+function simulateEntry(s){
+  const longOk = s.slope15m>0.35 && s.cvdNorm>0.2 && s.OBP_SIGNAL!=="STRONG_BEAR";
+  const shortOk= s.slope15m<-0.35 && s.cvdNorm<-0.2 && s.OBP_SIGNAL!=="STRONG_BULL";
+  if(!longOk && !shortOk) return {side:"NONE", confidence:0};
+  const side = longOk ? "LONG":"SHORT";
+  const entry = s.c;
+  const sl = side==="LONG" ? (entry * 0.992) : (entry * 1.008);
+  const tp = side==="LONG" ? (entry * 1.012) : (entry * 0.988);
+  const conf = 65 + Math.floor(Math.random()*18);
+  return {side, confidence: conf, entry, stopLoss: sl, takeProfit: tp, reason:"sim"};
+}
+function simulateMgmt(s, pos){
+  const rNow = pos.side==="LONG"
+    ? (s.c - pos.entry)/(pos.entry - pos.sl)
+    : (pos.entry - s.c)/(pos.sl - pos.entry);
+  if(rNow>=1.0){
+    const newSl = pos.entry * (pos.side==="LONG"?1.0004:0.9996);
+    return {action:"MOVE_SL", newSl, newTp:0, addBudgetStepPct:0, reason:"sim: protect"};
+  }
+  if(rNow>=1.6){
+    const newTp = pos.tp * (pos.side==="LONG"?1.008:0.992);
+    return {action:"MOVE_TP", newSl:0, newTp, addBudgetStepPct:0, reason:"sim: extend"};
+  }
+  return {action:"HOLD", newSl:0, newTp:0, addBudgetStepPct:0, reason:"sim: hold"};
+}
+
+/* =========================
+   BACKTEST ENGINE
+========================= */
+function calcSlippageBps(s, side, isStop){
+  const mode = $("slipMode").value;
+  if(mode==="off") return 0;
+  const baseBps = Number($("slipBaseBps").value||2);
+  const atr = s.atr || 0;
+  const atrPct = (atr>0)? (atr/s.c*100) : 0;
+  let bps = baseBps + atrPct*6;
+  if(isStop) bps *= 2.2;
+  return clamp(bps, 0, 180);
+}
+function applySlippage(price, side, bps){
+  const f = bps/10000;
+  if(side==="LONG") return price*(1+f);
+  return price*(1-f);
+}
+function pickExitPriceIfBothHit(pos, s){
+  const mode = $("tieBreak").value;
+  if(mode==="worst") return pos.sl;
+  if(mode==="best") return pos.tp;
+  const distSL = Math.abs(pos.entry - pos.sl);
+  const distTP = Math.abs(pos.tp - pos.entry);
+  return (distTP < distSL) ? pos.tp : pos.sl;
+}
+
+async function runBacktest(){
+  if(!series || series.length<200){
+    msg("err","請先 Fetch Binance Futures Data。");
+    return;
+  }
+  setStatus("Running...");
+  $("log").value = "";
+  trades = [];
+  selectedTradeIndex = -1;
+
+  const sym = ($("symbolSelect").value||"").trim().toUpperCase();
+  const feeBps = Number($("feeBps").value||6);
+  const fee = feeBps/10000;
+  let equity = Number($("equity0").value||10000);
+  const riskPct = Number($("riskPct").value||0.8)/100;
+
+  const entrySys = $("entrySys").value;
+  const entryUser= $("entryUser").value;
+  const mgmtSys  = $("mgmtSys").value;
+  const mgmtUser = $("mgmtUser").value;
+
+  const eqCurve=[equity];
+  let peak=equity, maxDD=0;
+
+  let pos=null;
+  let cooldown=0;
+
+  const snapOf = (i)=>({
+    symbol: sym,
+    i,
+    ts: series[i].ts,
+    o: series[i].o, h: series[i].h, l: series[i].l, c: series[i].c,
+    v: series[i].v,
+    oi: series[i].oi,
+    fundingRate: series[i].fundingRate,
+    cvdNorm: series[i].cvdNorm,
+    slope15m: series[i].slope15m,
+    slope1h: series[i].slope1h,
+    qvolSpikeRatio: series[i].qvolSpikeRatio,
+    PB_OK: series[i].PB_OK,
+    OBP_SIGNAL: series[i].OBP_SIGNAL,
+    anomaly: series[i].anomaly,
+    atr: series[i].atr,
+    oi1hChgSpanPct: series[i].oi1hChgSpanPct
+  });
+
+  function payloadText(i, posObj){
+    const s = snapOf(i);
+    const payload = {
+      snapshot: s,
+      position: posObj ? {
+        symbol: sym,
+        side: posObj.side,
+        entry: posObj.entry,
+        currentSl: posObj.sl,
+        currentTp: posObj.tp,
+        currentMark: s.c,
+        rNow: posObj.side==="LONG"
+          ? (s.c - posObj.entry)/(posObj.entry - posObj.sl)
+          : (posObj.entry - s.c)/(posObj.sl - posObj.entry),
+        mode: posObj.mode || "NORMAL"
+      } : null
+    };
+    return JSON.stringify(payload, null, 2);
+  }
+
+  for(let i=30;i<series.length;i++){
+    if(cooldown>0) cooldown--;
+    const s = snapOf(i);
+
+    if(pos){
+      const hitSL = pos.side==="LONG" ? (s.l <= pos.sl) : (s.h >= pos.sl);
+      const hitTP = pos.side==="LONG" ? (s.h >= pos.tp) : (s.l <= pos.tp);
+
+      if(hitSL || hitTP){
+        let exitPx = hitSL && hitTP ? pickExitPriceIfBothHit(pos, s) : (hitSL ? pos.sl : pos.tp);
+        const isStop = (exitPx === pos.sl);
+        const slipBps = calcSlippageBps(s, pos.side, isStop);
+        exitPx = applySlippage(exitPx, pos.side, slipBps);
+
+        const pnl = (pos.side==="LONG" ? (exitPx - pos.entry) : (pos.entry - exitPx)) * pos.qty;
+        const fees = (pos.entry*pos.qty + exitPx*pos.qty) * fee;
+        equity += (pnl - fees);
+
+        trades.push({
+          side: pos.side,
+          entry: pos.entry,
+          exit: exitPx,
+          openIndex: pos.openIndex,
+          closeIndex: i,
+          pnl: pnl - fees,
+          r: (pnl)/(pos.risk$),
+          reason: pos.reason
+        });
+
+        logLine(`CLOSE ${pos.side} @${round(exitPx,2)} PnL=${round(pnl-fees,2)} R=${round((pnl)/(pos.risk$),2)}`);
+        pos=null;
+        cooldown=6;
+        eqCurve.push(equity);
+        peak = Math.max(peak, equity);
+        maxDD = Math.max(maxDD, (peak-equity)/peak);
+        continue;
+      }
+
+      if(i % 12 === 0){
+        const pay = payloadText(i, pos);
+        const raw = await callOpenRouter(mgmtSys, mgmtUser, pay);
+        const mgmt = normalizeMgmtDecision(raw || simulateMgmt(s, pos), sym);
+
+        if(mgmt.action && mgmt.action !== "HOLD"){
+          if(mgmt.action === "MOVE_SL" || mgmt.action === "MOVE_BOTH"){
+            const newSl = Number(mgmt.newSl||0);
+            if(pos.side==="LONG"){
+              if(newSl >= pos.sl && newSl < s.c) pos.sl = newSl;
+            }else{
+              if(newSl <= pos.sl && newSl > s.c) pos.sl = newSl;
+            }
+          }
+          if(mgmt.action === "MOVE_TP" || mgmt.action === "MOVE_BOTH"){
+            const newTp = Number(mgmt.newTp||0);
+            if(pos.side==="LONG"){
+              if(newTp > pos.tp && newTp > s.c && newTp > pos.entry) pos.tp = newTp;
+            }else{
+              if(newTp < pos.tp && newTp < s.c && newTp < pos.entry) pos.tp = newTp;
+            }
+          }
+          if(mgmt.action === "ADD"){
+            const step = clamp(Number(mgmt.addBudgetStepPct||0), 0.005, 0.02);
+            if(s.anomaly <= 1.6){
+              const addRisk$ = equity * step;
+              const slDist = Math.abs(pos.entry - pos.sl);
+              if(slDist>0){
+                const addQty = addRisk$ / slDist;
+                pos.qty += addQty;
+                pos.risk$ += addRisk$;
+                pos.reason += ` | ADD(${step})`;
+              }
+            }
+          }
+          logLine(`MGMT ${mgmt.action} SL=${round(pos.sl,2)} TP=${round(pos.tp,2)} :: ${mgmt.reason||""}`);
+        }
+      }
+    }
+
+    if(!pos && cooldown===0){
+      const pay = payloadText(i, null);
+      const raw = await callOpenRouter(entrySys, entryUser, pay);
+      const dec = normalizeEntryDecision(raw || simulateEntry(s), s);
+
+      if(dec.side==="LONG" || dec.side==="SHORT"){
+        let entry = Number(dec.entry || s.c);
+        const sl = Number(dec.stopLoss || 0);
+        const tp = Number(dec.takeProfit || 0);
+        const conf = Number(dec.confidence || 0);
+
+        const slDist = Math.abs(entry - sl);
+        if(conf >= 65 && sl>0 && tp>0 && slDist>0){
+          const reward = Math.abs(tp - entry);
+          const rr = reward / slDist;
+          if(rr >= 1.5){
+            const slipBps = calcSlippageBps(s, dec.side, false);
+            entry = applySlippage(entry, dec.side, slipBps);
+
+            const risk$ = equity * riskPct;
+            const qty = risk$ / slDist;
+            const fees = entry*qty*fee;
+            equity -= fees;
+
+            pos = { side: dec.side, entry, sl, tp, qty, risk$, reason: dec.reason||"AI", openIndex:i, mode:"NORMAL" };
+            logLine(`OPEN ${pos.side} @${round(entry,2)} SL=${round(sl,2)} TP=${round(tp,2)} RR=${round(rr,2)} conf=${conf}`);
+            eqCurve.push(equity);
+          }
+        }
+      }
+    }
+
+    if(i % 10 === 0){
+      eqCurve.push(equity);
+      peak = Math.max(peak, equity);
+      maxDD = Math.max(maxDD, (peak-equity)/peak);
+    }
+  }
+
+  if(pos){
+    const last = series[series.length-1].c;
+    const slipBps = calcSlippageBps(snapOf(series.length-1), pos.side, true);
+    const exitPx = applySlippage(last, pos.side, slipBps);
+    const pnl = (pos.side==="LONG" ? (exitPx - pos.entry) : (pos.entry - exitPx)) * pos.qty;
+    const fees = (pos.entry*pos.qty + exitPx*pos.qty) * fee;
+    equity += (pnl - fees);
+    trades.push({side:pos.side, entry:pos.entry, exit:exitPx, openIndex:pos.openIndex, closeIndex:series.length-1, pnl:pnl-fees, r:(pnl)/(pos.risk$), reason:pos.reason});
+    logLine(`FORCE CLOSE @${round(exitPx,2)} PnL=${round(pnl-fees,2)} R=${round((pnl)/(pos.risk$),2)}`);
+    pos=null;
+  }
+
+  const net = equity - Number($("equity0").value||10000);
+  const wins = trades.filter(t=>t.pnl>0).length;
+  const wr = trades.length ? wins/trades.length : 0;
+
+  $("kNet").innerHTML = `<span class="${net>=0?'pos':'neg'}">${round(net,2)}</span>`;
+  $("kDD").textContent = `${round(maxDD*100,2)}%`;
+  $("kWR").textContent = `${round(wr*100,2)}%`;
+  $("kN").textContent = String(trades.length);
+
+  renderTrades(trades);
+  drawEquity(eqCurve);
+  drawCandles();
+  setStatus("Done");
+}
+
+/* =========================
+   CHARTS
+========================= */
+function drawAll(){
+  drawCandles();
+  drawEquity([Number($("equity0").value||10000), Number($("equity0").value||10000)]);
+}
+function fitView(){
+  if(!series) return;
+  view.start = Math.max(0, series.length - Math.min(series.length, 240));
+  view.end = series.length-1;
+  recomputeViewMinMax();
+}
+function recomputeViewMinMax(){
+  if(!series) return;
+  let mn=Infinity, mx=-Infinity;
+  for(let i=view.start;i<=view.end;i++){
+    mn=Math.min(mn, series[i].l);
+    mx=Math.max(mx, series[i].h);
+  }
+  view.min=mn; view.max=mx;
+}
+function drawCandles(){
+  const c = $("kCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  if(!series || series.length<10){
+    ctx.fillStyle="#93a4b8";
+    ctx.font="14px system-ui";
+    ctx.fillText("No data. Click Load Symbols -> Fetch Data.", 16, 24);
+    return;
+  }
+
+  recomputeViewMinMax();
+  const s=view.start, e=view.end;
+  const padX=44, padY=18;
+  const w=c.width, h=c.height;
+  const plotW = w - padX - 12;
+  const plotH = h - padY - 22;
+  const min=view.min, max=view.max;
+  const span = Math.max(1e-9, max-min);
+
+  ctx.globalAlpha=0.35;
+  ctx.strokeStyle="#233654";
+  ctx.lineWidth=1;
+  for(let k=0;k<5;k++){
+    const y = padY + k*(plotH/4);
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(padX+plotW, y);
+    ctx.stroke();
+  }
+  ctx.globalAlpha=1;
+
+  ctx.fillStyle="#93a4b8";
+  ctx.font="12px system-ui";
+  ctx.fillText(round(max,2), 8, padY+10);
+  ctx.fillText(round(min,2), 8, padY+plotH);
+
+  const n = e - s + 1;
+  const cw = plotW / n;
+  const wickX = (i)=> padX + (i - s + 0.5)*cw;
+  function yOf(px){ return padY + (max-px)/span*plotH; }
+
+  for(let i=s;i<=e;i++){
+    const d=series[i];
+    const x=wickX(i);
+    const yo=yOf(d.o), yc=yOf(d.c), yh=yOf(d.h), yl=yOf(d.l);
+    const up = d.c>=d.o;
+    ctx.strokeStyle = up ? "#35d07f" : "#ff5c7a";
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, yh); ctx.lineTo(x, yl); ctx.stroke();
+    const bw = Math.max(2, cw*0.55);
+    const bx = x - bw/2;
+    const top = Math.min(yo,yc);
+    const bh = Math.max(2, Math.abs(yc-yo));
+    ctx.fillStyle = up ? "rgba(53,208,127,0.75)" : "rgba(255,92,122,0.75)";
+    ctx.fillRect(bx, top, bw, bh);
+  }
+
+  for(let ti=0;ti<trades.length;ti++){
+    const t=trades[ti];
+    if(t.openIndex < s || t.openIndex > e) continue;
+    const x=wickX(t.openIndex);
+    const y=yOf(t.entry);
+    const isSel = (ti===selectedTradeIndex);
+
+    ctx.beginPath();
+    ctx.arc(x, y, isSel?7:5, 0, Math.PI*2);
+    ctx.fillStyle = t.side==="LONG" ? "rgba(92,200,255,0.95)" : "rgba(255,204,102,0.95)";
+    ctx.fill();
+
+    if(t.closeIndex>=s && t.closeIndex<=e){
+      const x2=wickX(t.closeIndex);
+      const y2=yOf(t.exit);
+      ctx.globalAlpha = isSel?0.95:0.35;
+      ctx.strokeStyle = t.pnl>=0 ? "#35d07f" : "#ff5c7a";
+      ctx.lineWidth = isSel?2:1;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.globalAlpha=1;
+
+      ctx.beginPath();
+      ctx.rect(x2-4, y2-4, 8, 8);
+      ctx.fillStyle = t.pnl>=0 ? "rgba(53,208,127,0.95)" : "rgba(255,92,122,0.95)";
+      ctx.fill();
+    }
+  }
+
+  if(selectedTradeIndex>=0 && trades[selectedTradeIndex]){
+    const t=trades[selectedTradeIndex];
+    $("chartInfo").textContent = `K 線 • 交易 #${selectedTradeIndex+1} • ${t.side} R=${round(t.r,2)} PnL=${round(t.pnl,2)}`;
+  }else{
+    $("chartInfo").textContent = `K 線 • 視窗 ${s}..${e} / ${series.length-1}`;
+  }
+}
+
+function drawEquity(eq){
+  const c = $("eqCanvas");
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  if(!eq || eq.length<2){
+    ctx.fillStyle="#93a4b8";
+    ctx.font="14px system-ui";
+    ctx.fillText("No equity curve yet.", 16, 24);
+    return;
+  }
+
+  const pad=18;
+  const w=c.width, h=c.height;
+  const min=Math.min(...eq), max=Math.max(...eq);
+  const span = Math.max(1e-9, max-min);
+
+  ctx.globalAlpha=0.35;
+  ctx.beginPath(); ctx.moveTo(pad, h-pad); ctx.lineTo(w-pad, h-pad);
+  ctx.strokeStyle="#2a3b55"; ctx.lineWidth=1; ctx.stroke();
+  ctx.globalAlpha=1;
+
+  ctx.beginPath();
+  for(let i=0;i<eq.length;i++){
+    const x = pad + (i/(eq.length-1))*(w-2*pad);
+    const y = (h-pad) - ((eq[i]-min)/span)*(h-2*pad);
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.strokeStyle="#5cc8ff";
+  ctx.lineWidth=2; ctx.stroke();
+
+  ctx.fillStyle="#93a4b8"; ctx.font="12px system-ui";
+  ctx.fillText(`min ${round(min,2)}`, pad, pad);
+  ctx.fillText(`max ${round(max,2)}`, pad, pad+16);
+}
+
+/* =========================
+   TRADES TABLE + HOVER
+========================= */
+function renderTrades(trs){
+  const tb = $("trTable").querySelector("tbody");
+  tb.innerHTML = "";
+  trs.forEach((t,idx)=>{
+    const tr=document.createElement("tr");
+    tr.style.cursor="pointer";
+    tr.addEventListener("click", ()=>{
+      selectedTradeIndex = idx;
+      const mid = Math.floor((t.openIndex + t.closeIndex)/2);
+      const half = 120;
+      view.start = clamp(mid-half, 0, series.length-2);
+      view.end = clamp(mid+half, view.start+10, series.length-1);
+      drawCandles();
+    });
+    const pnlClass = t.pnl>=0 ? "pos":"neg";
+    tr.innerHTML = `
+      <td>${idx+1}</td>
+      <td>${t.side}</td>
+      <td>${round(t.entry,4)}</td>
+      <td>${round(t.exit,4)}</td>
+      <td class="${pnlClass}">${round(t.pnl,2)}</td>
+      <td>${round(t.r,2)}</td>
+      <td>${String(t.reason||"").slice(0,120)}</td>
+    `;
+    tb.appendChild(tr);
+  });
+}
+
+(function attachHover(){
+  const c = $("kCanvas");
+  c.addEventListener("mousemove",(ev)=>{
+    if(!series) return;
+    const rect=c.getBoundingClientRect();
+    const x = (ev.clientX-rect.left) * (c.width/rect.width);
+    const padX=44;
+    const plotW = c.width - padX - 12;
+    const n = view.end - view.start + 1;
+    const cw = plotW / n;
+    const idx = Math.floor((x - padX) / cw) + view.start;
+    if(idx>=view.start && idx<=view.end && series[idx]){
+      const d=series[idx];
+      $("hoverInfo").textContent =
+        `i=${idx}  O=${round(d.o,4)} H=${round(d.h,4)} L=${round(d.l,4)} C=${round(d.c,4)}  ATR=${round(d.atr||0,4)} spike=${round(d.qvolSpikeRatio||1,2)} OBP=${d.OBP_SIGNAL} OI=${(typeof d.oi==="number")?round(d.oi,2):"-"} fund=${(typeof d.fundingRate==="number")?d.fundingRate:"-"}`;
+    }
+  });
+})();
+
+/* =========================
+   BUTTONS + INIT
+========================= */
+$("loadSymbolsBtn").addEventListener("click", loadSymbols);
+$("fetchBtn").addEventListener("click", async ()=>{
+  try{ await fetchSeries(); }
+  catch(e){
+    msg("err", `<b>抓資料失敗</b>：${String(e)}<br/><span class="small">若是 CORS：請用你自己的 Proxy 代轉 /fapi 與 /futures/data。</span>`);
+    setStatus("Error");
+  }
+});
+$("runBtn").addEventListener("click", async ()=>{ await runBacktest(); });
+$("resetBtn").addEventListener("click", ()=>{
+  series=null; trades=[]; selectedTradeIndex=-1;
+  $("dataTag").textContent="No data";
+  $("log").value="";
+  $("kNet").textContent=$("kDD").textContent=$("kWR").textContent=$("kN").textContent="-";
+  $("trTable").querySelector("tbody").innerHTML="";
+  const kc=$("kCanvas").getContext("2d"); kc.clearRect(0,0,$("kCanvas").width,$("kCanvas").height);
+  drawEquity([Number($("equity0").value||10000), Number($("equity0").value||10000)]);
+  msg("", "");
+  setStatus("Ready");
+});
+$("fitBtn").addEventListener("click", ()=>{
+  fitView();
+  drawCandles();
+});
+$("lockPrompts").addEventListener("change", (e)=> setPromptsLocked(e.target.checked));
+
+$("entrySys").value = DEFAULT_ENTRY_SYS;
+$("entryUser").value = DEFAULT_ENTRY_USER;
+$("mgmtSys").value  = DEFAULT_MGMT_SYS;
+$("mgmtUser").value = DEFAULT_MGMT_USER;
+setPromptsLocked(true);
+drawAll();
+setDataTag();
+msg("warn", `<b>提醒：</b>若你在瀏覽器直連 Binance 失敗（常見 CORS），把 Base URL 換成你的同網域 Proxy。`);
+</script>
+</body>
+</html>
