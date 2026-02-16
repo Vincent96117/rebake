@@ -325,9 +325,12 @@ function logLine(s){ $("log").value += s + "\\n"; $("log").scrollTop = 1e9; }
 function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
 function round(n,dp=2){ const p=Math.pow(10,dp); return Math.round(n*p)/p; }
 function safeJSONExtract(text){
-  const m = String(text||"").match(/\\{[\\s\\S]*\\}/);
-  if(!m) return null;
-  try{ return JSON.parse(m[0]); }catch(e){ return null; }
+  const s = String(text || "");
+  const a = s.indexOf("{");
+  const b = s.lastIndexOf("}");
+  if (a === -1 || b === -1 || b <= a) return null;
+  try { return JSON.parse(s.slice(a, b + 1)); }
+  catch (e) { return null; }
 }
 function setPromptsLocked(locked){
   for(const id of ["entrySys","entryUser","mgmtSys","mgmtUser"]){
@@ -340,7 +343,12 @@ function msg(kind, html){
   if(!html){ box.innerHTML=""; return; }
   box.innerHTML = `<div class="${kind}">${html}</div>`;
 }
-function base(){ return ($("baseUrl").value||"").trim().replace(/\\/$/,""); }
+function base(){
+  let u = ($("baseUrl").value || "").trim();
+  while (u.endsWith("/")) u = u.slice(0, -1);
+  return u;
+}
+
 
 /* =========================
    BINANCE FETCH (USD-M Futures)
